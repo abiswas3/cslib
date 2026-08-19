@@ -369,7 +369,23 @@ theorem alt_time_eq_cost [Fintype V] (succ : V -> List V) (source : V) :
 -- the neighbours actually scanned are a sub-list of all successor-list entries in the input
 theorem scan_cost_le_entries [Fintype V] (succ : V -> List V) (source : V) :
     let final_list := TimeM.ret (bfs_alt succ source)
-    (final_list.map fun v => (succ v).length).sum ≤ entries succ := sorry
+    (final_list.map fun v => (succ v).length).sum ≤ entries succ := by
+  intro final_list
+  -- Step 1: final_list has no duplicates. Shared fact, proven together with
+  -- num_dqs_le_card — still outstanding, sorried here for now.
+  have hnodup : final_list.Nodup := sorry
+  -- Step 2: rewrite the list-sum as the equal Finset-sum over exactly the
+  -- vertices final_list contains. This step needs hnodup: without it a
+  -- repeated vertex would be double-counted on the list side but not the
+  -- Finset side, breaking the equality.
+  rw [← List.sum_toFinset (fun v => (succ v).length) hnodup]
+  -- Step 3: unfold entries to see it is the same shape of sum, just ranging
+  -- over every vertex in V instead of only the ones actually visited.
+  unfold entries
+  -- Step 4: final_list's vertex set is a subset of everything, and every
+  -- term being summed is a nonnegative length, so the sub-sum is at most the
+  -- full sum.
+  exact Finset.sum_le_sum_of_subset (Finset.subset_univ _)
 
 -- bfs_alt starting at `source` over structure `succ` returns a final list of visted nodes
 -- we show that the length of this list is less than equal to the size of the cardinality of our type V.
