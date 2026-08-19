@@ -7,6 +7,7 @@ Authors: Ari
 module
 
 public import Cslib.Algorithms.Lean.BreadthFirstSearch.BreadthFirstSearch
+public import Cslib.Algorithms.Lean.BreadthFirstSearch.NoDup
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import all Init.Data.Queue
 
@@ -37,7 +38,6 @@ theorem discover_same_order (state : State V) (v : V) :
   unfold discover 
   split_ifs <;> rfl 
   
-
 -- Inspective neighbours costs time exactly equal to size of neighbours
 theorem scan_time_eq_length (xs : List V) (state : State V) :
     (inspectNeighbors xs state).time = xs.length := by 
@@ -85,9 +85,6 @@ theorem cost_cons (succ : V -> List V) (v : V) (order : List V) :
   rw [List.length_cons, List.map_cons, List.sum_cons]
   omega
 
--- the state-generalized accounting fact: ticks spent during a call to
--- bfsLoop_alt, plus whatever cost was already banked in the starting state,
--- equals the cost of the order once the call finishes
 theorem bfsLoop_alt_cost (succ : V -> List V) (fuel : ℕ) (state : State V) :
     (bfsLoop_alt succ fuel state).time + cost succ state.reverseOrder =
       cost succ (bfsLoop_alt succ fuel state).ret.reverseOrder := by 
@@ -118,9 +115,13 @@ theorem alt_time_eq_cost [Fintype V] (succ : V -> List V) (source : V) :
       
 
 theorem final_list_has_no_dups [Fintype V] (succ : V -> List V) (source : V) :
-    let final_list := (bfs_alt succ source).ret 
-    final_list.Nodup := by 
-    sorry
+    let final_list := (bfs_alt succ source).ret
+    final_list.Nodup := by
+  intro final_list
+  simp only [final_list, bfs_alt, ret_bind, ret_pure]
+  exact List.nodup_reverse.mpr
+    (bfsLoop_alt_dequeueInvariant (DequeueInvariant.initial source) succ
+      (Fintype.card V)).order_nodup
 
 -- the neighbours actually scanned are a sub-list of all successor-list entries in the input
 theorem scan_cost_le_entries [Fintype V] (succ : V -> List V) (source : V) :
@@ -139,9 +140,6 @@ theorem num_dqs_le_card [Fintype V] (succ : V -> List V) (source: V):
     (bfs_alt succ source).ret.length <= Fintype.card V
     := by
   have hnodup : (bfs_alt succ source).ret.Nodup := final_list_has_no_dups _ _ 
-  -- If V is fintype and the final list returne has no duplictes, 
-  -- then the list size is at most as large as the cardinality of the
-  -- finite type.
   exact hnodup.length_le_card
 
 -- The main theorem 
