@@ -55,7 +55,19 @@ def inspectNeighbors : List V → State V → TimeM ℕ (State V):=
         -- but we tick regardless for every neighbour v processed
         ✓ let state := discover state v
         inspectNeighbors vs state
-     
+
+
+def bfsLoop_alt (succ : V -> List V) (fuel: ℕ) (init_state: State V) : TimeM ℕ (State V):=
+  match fuel with 
+  | 0 => pure (init_state)
+  | fuel + 1 => 
+    match init_state.queue.dequeue? with 
+    | none => pure init_state 
+    | some (v, queue) => do
+      TimeM.tick 1 
+      let state: State V := {init_state with queue, reverseOrder:= v::init_state.reverseOrder}
+      let state <- inspectNeighbors (succ v) state 
+      bfsLoop_alt succ fuel state
 /-
 Given fuel (number of steps to run for), a starting state, 
 Return a new State wrapped in a TimeM monad.
@@ -85,6 +97,10 @@ Runs breadth-first search from `source`.
 -/
 def bfs [Fintype V] (successors : V → List V) (source : V) : TimeM ℕ (List V) := do
   let final ← bfsLoop successors (Fintype.card V) (initialState source)
+  return final.reverseOrder.reverse
+
+def bfs_alt [Fintype V] (successors : V → List V) (source : V) : TimeM ℕ (List V) := do
+  let final ← bfsLoop_alt successors (Fintype.card V) (initialState source)
   return final.reverseOrder.reverse
 
 
