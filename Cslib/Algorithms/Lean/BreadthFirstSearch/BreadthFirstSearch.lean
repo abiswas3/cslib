@@ -41,7 +41,8 @@ def discover (state : State V) (v : V) : State V :=
   else
     { state with
       queue := Std.Queue.enqueue v state.queue
-      seen := insert v state.seen }
+      seen := insert v state.seen 
+    }
 
 /-- Inspects a list of successors from left to right. -/
 def inspectNeighbors : List V → State V → TimeM ℕ (State V):=
@@ -50,9 +51,6 @@ def inspectNeighbors : List V → State V → TimeM ℕ (State V):=
     | [] => fun state => pure state -- no nbrs 
     | v:: vs => 
       fun state => do 
-        -- Check if v has already been seen or not. If yes return state unchanged
-        -- else add v to queue and update state. 
-        -- but we tick regardless for every neighbour v processed
         ✓ let state := discover state v
         inspectNeighbors vs state
 
@@ -79,19 +77,10 @@ def bfsLoop (successors : V → List V) : ℕ → State V → TimeM ℕ (State V
         match curr_state.queue.dequeue? with
         | none => pure curr_state -- queue is empty, we are done
         | some (v, queue) => do
-            -- increament Monad time counter by 1, and then
-            -- update state with shorted queue
-            -- and then run the algorithm on the reduced fuel and updated state
-            -- So everytime i process a new node v freshly popped from the queue, 
-            -- I increment the counter by 1. 
-            -- Eventually I will hve to show that there |V| of these.
             ✓ let state : State V := 
               { curr_state with queue, reverseOrder := v :: curr_state.reverseOrder }
-            -- Inside inspectNeighbors we do the other time ticking.
-            -- For each successor-list entry we also tick once.
             let state ← inspectNeighbors (successors v) state
             bfsLoop successors fuel state
-
 /--
 Runs breadth-first search from `source`.
 -/
