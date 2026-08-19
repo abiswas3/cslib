@@ -41,7 +41,8 @@ def discover (state : State V) (v : V) : State V :=
   else
     { state with
       queue := Std.Queue.enqueue v state.queue
-      seen := insert v state.seen }
+      seen := insert v state.seen 
+    }
 
 /-- Inspects a list of successors from left to right. -/
 def inspectNeighbors : List V → State V → TimeM ℕ (State V):=
