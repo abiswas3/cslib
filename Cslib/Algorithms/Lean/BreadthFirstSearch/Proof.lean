@@ -321,6 +321,93 @@ theorem bfs_time (successors : V → List V) (source : V) :
 
 end Finite
 
+
+theorem discover_same_order (state : State V) (v : V) : 
+    (discover state v).reverseOrder = state.reverseOrder := by 
+  unfold discover 
+  split_ifs <;> rfl 
+  
+
+-- Inspective neighbours costs time exactly equal to size of neighbours
+theorem scan_time_eq_length (xs : List V) (state : State V) :
+    (inspectNeighbors xs state).time = xs.length := by 
+  induction xs generalizing state with 
+  | nil =>
+      simp only [inspectNeighbors, pure, TimeM.pure]
+      rfl 
+  | cons v vs ih =>
+    simp only [inspectNeighbors, bind, TimeM.bind, tick]
+    rw [ih, Nat.add_comm _ _ ]
+    simp only [List.length_cons]
+
+-- scanning the list of neighbours does not affect the list of dequeued nodes
+theorem scan_same_order (xs : List V) (state : State V) :
+    (inspectNeighbors xs state).ret.reverseOrder = state.reverseOrder := by
+  induction xs generalizing state with
+  | nil => rfl
+  | cons v vs ih =>  
+    simp only [inspectNeighbors, bind, TimeM.bind, ih]
+    exact discover_same_order _ _  
+     
+
+/-- The total ticks accounted for by a dequeue-order: one per vertex dequeued, plus the
+length of each of their successor lists. -/
+abbrev cost (succ : V -> List V) (order : List V) : ℕ :=
+  order.length + (order.map fun v => (succ v).length).sum
+
+theorem bfsLoop_alt_cost (succ : V -> List V) (fuel : ℕ) (state : State V) :
+    (bfsLoop_alt succ fuel state).time + cost succ state.reverseOrder =
+      cost succ (bfsLoop_alt succ fuel state).ret.reverseOrder := sorry
+
+-- NOTE: we do not use entries here, as succ might be disconnected.
+-- by using final_list as the index set we actually get the edges explored.
+theorem alt_time_eq_cost [Fintype V] (succ : V -> List V) (source : V) :
+    let timeMonad := bfs_alt succ source 
+    let final_list := timeMonad.ret
+    timeMonad.time = cost succ final_list := sorry
+
+-- the neighbours actually scanned are a sub-list of all successor-list entries in the input
+theorem scan_cost_le_entries [Fintype V] (succ : V -> List V) (source : V) :
+    let final_list := TimeM.ret (bfs_alt succ source)
+    (final_list.map fun v => (succ v).length).sum ≤ entries succ := by
+  intro final_list
+  -- Step 1: final_list has no duplicates. Shared fact, proven together with
+  -- num_dqs_le_card — still outstanding, sorried here for now.
+  have hnodup : final_list.Nodup := sorry
+  -- Step 2: rewrite the list-sum as the equal Finset-sum over exactly the
+  -- vertices final_list contains. This step needs hnodup: without it a
+  -- repeated vertex would be double-counted on the list side but not the
+  -- Finset side, breaking the equality.
+  rw [← List.sum_toFinset (fun v => (succ v).length) hnodup]
+  -- Step 3: unfold entries to see it is the same shape of sum, just ranging
+  -- over every vertex in V instead of only the ones actually visited.
+  unfold entries
+  -- Step 4: final_list's vertex set is a subset of everything, and every
+  -- term being summed is a nonnegative length, so the sub-sum is at most the
+  -- full sum.
+  exact Finset.sum_le_sum_of_subset (Finset.subset_univ _)
+
+-- bfs_alt starting at `source` over structure `succ` returns a final list of visted nodes
+-- we show that the length of this list is less than equal to the size of the cardinality of our type V.
+theorem num_dqs_le_card [Fintype V] (succ: V -> List V) (source: V):
+    (bfs_alt succ source).ret.length <= Fintype.card V 
+    := by 
+    sorry 
+
+-- The main theorem 
+theorem bfs_run_time [Fintype V] (succ : V -> List V) (source : V) :
+    (bfs_alt succ source).time <= Fintype.card V + entries succ := by
+  let time_monad := bfs_alt succ source
+  let final_list := time_monad.ret
+  have h1 : final_list.length <= Fintype.card V := num_dqs_le_card succ source
+  have h2 : (final_list.map fun v => (succ v).length).sum ≤ entries succ :=
+    scan_cost_le_entries succ source
+  calc time_monad.time
+      = final_list.length + (final_list.map fun v => (succ v).length).sum :=
+        alt_time_eq_cost succ source
+    _ <= Fintype.card V + entries succ := by gcongr
+
 end BFS
+
 
 end Cslib.Algorithms.Lean.TimeM
