@@ -1,6 +1,7 @@
 module  -- shake: keep-all --deprecated_module: ignore
 
 public import Cslib.Algorithms.Lean.BreadthFirstSearch.BreadthFirstSearch
+public import Cslib.Algorithms.Lean.BreadthFirstSearch.NoDup
 public import Cslib.Algorithms.Lean.BreadthFirstSearch.Proof
 public import Cslib.Algorithms.Lean.MergeSort.MergeSort
 public import Cslib.Algorithms.Lean.TimeM

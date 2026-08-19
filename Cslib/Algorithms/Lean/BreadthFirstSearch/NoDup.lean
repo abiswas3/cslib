@@ -89,8 +89,8 @@ theorem DequeueInvariant.initial (source : V) :
   · intro v hv
     rw [queueContents_initial] at hv
     change v ∈ ({source} : Finset V)
-    have h_v_eq_src : v = source := List.mem_singleton.mp hv 
-    exact Finset.mem_singleton.mpr (h_v_eq_src)
+    have h_v_eq_src : v = source := List.mem_singleton.mp hv
+    exact Finset.mem_singleton.mpr h_v_eq_src
   · intro v hv
     change v ∈ [] at hv -- this is not possible so i'll derive false
     by_contra _ -- change goal to false
@@ -158,7 +158,7 @@ theorem DequeueInvariant.inspectNeighbors (h : DequeueInvariant state) (neighbor
       simpa only [BFS.inspectNeighbors, pure, TimeM.pure] using h
   | cons v vs ih =>
       simp only [BFS.inspectNeighbors, bind, TimeM.bind, tick]
-      exact ih (h.discover v)
+      exact ih (DequeueInvariant.discover h v)
 
 /-- Moving the queue's front vertex into `reverseOrder` preserves the dequeue invariant. -/
 theorem DequeueInvariant.dequeue (h : DequeueInvariant state) {v : V}
@@ -208,17 +208,32 @@ theorem bfsLoop_alt_dequeueInvariant (h : DequeueInvariant state) (succ : V -> L
     (fuel : ℕ) : DequeueInvariant (bfsLoop_alt succ fuel state).ret := by
   induction fuel generalizing state with
   | zero =>
-      simpa only [bfsLoop_alt, pure, TimeM.pure] using h
+      simp only [bfsLoop_alt] 
+      simp only [pure, TimeM.pure]
+      exact h 
   | succ fuel ih =>
       simp only [bfsLoop_alt]
       cases hdequeue : state.queue.dequeue? with
       | none =>
-          simpa only [pure, TimeM.pure] using h
+          simp only [pure, TimeM.pure]
+          exact h 
       | some pair =>
-          rcases pair with ⟨v, remaining⟩
+          rcases pair with ⟨v, remQ⟩
           simp only [tick, bind, TimeM.bind]
-          apply ih
-          exact (h.dequeue hdequeue).inspectNeighbors (succ v)
+          -- First remove `v` from the queue and record it in the dequeue order.
+          let dequeuedState : State V :=
+            { state with
+              queue := remQ
+              reverseOrder := v :: state.reverseOrder }
+          have hAfterDequeue : DequeueInvariant dequeuedState :=
+            DequeueInvariant.dequeue h hdequeue
+          -- Then inspect `v`'s neighbours, possibly discovering and enqueuing new vertices.
+          let inspectedState : State V :=
+            (inspectNeighbors (succ v) dequeuedState).ret
+          have hAfterInspection : DequeueInvariant inspectedState :=
+            DequeueInvariant.inspectNeighbors hAfterDequeue (succ v)
+          -- Finally use the induction hypothesis for the remaining loop iterations.
+          exact ih (state := inspectedState) hAfterInspection
 
 end BFS
 
